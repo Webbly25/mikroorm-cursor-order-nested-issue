@@ -2,7 +2,6 @@ import { Entity, ManyToOne, MikroORM, PrimaryKey, Property, Ref } from '@mikro-o
 
 @Entity()
 class AEntity {
-
   @PrimaryKey()
   id!: number;
 
@@ -24,7 +23,7 @@ class BEntity {
 
 	@Property()
 	bName: string;
-	
+
 	constructor(a: Ref<AEntity>, bName: string) {
 		this.a = a;
 		this.bName = bName;
@@ -66,24 +65,21 @@ afterAll(async () => {
 
 test('cursor pagination with nested populate', async () => {
   const names = 'abcdefghijklmnopqrstuvwxyz'.split('');
-
   for (const name of names) {
-	const a = orm.em.create(AEntity, { aName: name });
-	orm.em.persist(a);
-	const b = orm.em.create(BEntity, { a, bName: name });
-	orm.em.persist(b);
-	const c = orm.em.create(CEntity, { b, cName: name });
-	orm.em.persist(c);
+    const a = orm.em.create(AEntity, { aName: name });
+    orm.em.persist(a);
+    const b = orm.em.create(BEntity, { a, bName: name });
+    orm.em.persist(b);
+    const c = orm.em.create(CEntity, { b, cName: name });
+    orm.em.persist(c);
   }
-
   await orm.em.flush();
 
-  	let hasNextPage = true;
+  let hasNextPage = true;
 	let after: string | null = '';
 	while (hasNextPage) {
 		const cursor = await orm.em.findByCursor(CEntity, {}, {
 			populate: ['b.a'],
-			// populate: ['b', 'b.a'],
 			after: after as string,
 			first: 5,
 			orderBy: [
@@ -91,20 +87,11 @@ test('cursor pagination with nested populate', async () => {
 				{ b: { bName: 'asc' } },
 				{ b: { a: { aName: 'asc' } } },
 			]
-			// orderBy: {
-			// 	cName: 'asc',
-			// 	b: {
-			// 		bName: 'asc',
-			// 		a: {
-			// 			aName: 'asc',
-			// 		}
-			// 	}
-			// }
 		});
-		
+
 		after = cursor.endCursor;
 		if (after === null) hasNextPage = false;
 	}
-  
+
 	expect(1).toBe(1);
 });
