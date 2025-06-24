@@ -1,22 +1,51 @@
-import { Entity, MikroORM, PrimaryKey, Property } from '@mikro-orm/sqlite';
+import { Entity, ManyToOne, MikroORM, PrimaryKey, Property, Ref } from '@mikro-orm/sqlite';
 
 @Entity()
-class User {
+class AEntity {
 
   @PrimaryKey()
   id!: number;
 
   @Property()
-  name: string;
+  aName: string;
 
-  @Property({ unique: true })
-  email: string;
-
-  constructor(name: string, email: string) {
-    this.name = name;
-    this.email = email;
+  constructor(aName: string) {
+    this.aName = aName;
   }
+}
 
+@Entity()
+class BEntity {
+	@PrimaryKey()
+	id!: number;
+
+	@ManyToOne(() => AEntity)
+	a: Ref<AEntity>;
+
+	@Property()
+	bName: string;
+	
+	constructor(a: Ref<AEntity>, bName: string) {
+		this.a = a;
+		this.bName = bName;
+	}
+}
+
+@Entity()
+class CEntity {
+	@PrimaryKey()
+	id!: number;
+
+	@ManyToOne(() => BEntity)
+	b: Ref<BEntity>;
+
+	@Property()
+	cName: string;
+
+	constructor(b: Ref<BEntity>, cName: string) {
+		this.b = b;
+		this.cName = cName;
+	}
 }
 
 let orm: MikroORM;
@@ -24,7 +53,7 @@ let orm: MikroORM;
 beforeAll(async () => {
   orm = await MikroORM.init({
     dbName: ':memory:',
-    entities: [User],
+    entities: [AEntity, BEntity, CEntity],
     debug: ['query', 'query-params'],
     allowGlobalContext: true, // only for testing
   });
@@ -36,16 +65,46 @@ afterAll(async () => {
 });
 
 test('basic CRUD example', async () => {
-  orm.em.create(User, { name: 'Foo', email: 'foo' });
-  await orm.em.flush();
-  orm.em.clear();
+  const names = 'abcdefghijklmnopqrstuvwxyz'.split('');
 
-  const user = await orm.em.findOneOrFail(User, { email: 'foo' });
-  expect(user.name).toBe('Foo');
-  user.name = 'Bar';
-  orm.em.remove(user);
+  for (const name of names) {
+	const a = orm.em.create(AEntity, { aName: name });
+	orm.em.persist(a);
+	const b = orm.em.create(BEntity, { a, bName: name });
+	orm.em.persist(b);
+	const c = orm.em.create(CEntity, { b, cName: name });
+	orm.em.persist(c);
+  }
+
   await orm.em.flush();
 
-  const count = await orm.em.count(User, { email: 'foo' });
-  expect(count).toBe(0);
+  	let hasNextPage = true;
+	let after: string | null = '';
+	while (hasNextPage) {
+		const cursor = await orm.em.findByCursor(CEntity, {}, {
+			populate: ['b.a'],
+			// populate: ['b', 'b.a'],
+			after: after as string,
+			first: 5,
+			orderBy: [
+				{ cName: 'asc' },
+				{ b: { bName: 'asc' } },
+				{ b: { a: { aName: 'asc' } } },
+			]
+			// orderBy: {
+			// 	cName: 'asc',
+			// 	b: {
+			// 		bName: 'asc',
+			// 		a: {
+			// 			aName: 'asc',
+			// 		}
+			// 	}
+			// }
+		});
+		
+		after = cursor.endCursor;
+		if (after === null) hasNextPage = false;
+	}
+  
+	expect(1).toBe(1);
 });
