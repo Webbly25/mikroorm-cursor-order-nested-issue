@@ -64,7 +64,7 @@ afterAll(async () => {
   await orm.close(true);
 });
 
-test('basic CRUD example', async () => {
+test('cursor pagination with nested populate', async () => {
   const names = 'abcdefghijklmnopqrstuvwxyz'.split('');
 
   for (const name of names) {
